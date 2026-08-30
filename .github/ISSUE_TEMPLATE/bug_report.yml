@@ -1,0 +1,42 @@
+name: Bug 报告
+description: 报告可以稳定复现的问题
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: 问题描述
+      description: 请说明实际行为与预期行为。
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 打开……
+        2. 拖入……
+        3. 观察……
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Float Door 版本
+      placeholder: 例如 1.0.0
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS 与 Mac 型号
+      placeholder: 例如 macOS 15.6 / MacBook Pro M3
+    validations:
+      required: true
+  - type: textarea
+    id: additional
+    attributes:
+      label: 补充信息
+      description: 可附上已移除个人信息的日志、截图或录屏。
