@@ -1,13 +1,13 @@
 # 版本与兼容性
 
-Mac 任意门采用 `主版本.次版本.修订版本`：
+Float Door采用 `主版本.次版本.修订版本`：
 
 - `1.0.1`：兼容性修复和错误修复。
 - `1.1.0`：保持数据兼容的新功能。
 - `2.0.0`：可能包含不兼容变化；发布时会提供迁移说明。
 
-正式版本固定使用 Bundle ID `com.macanydoor.app`，用户数据目录固定为 `~/Library/Application Support/MacAnyDoor`。
+正式版本固定使用 Bundle ID `com.floatdoor.app`，用户数据目录固定为 `~/Library/Application Support/FloatDoor`。
 
-## 扩展策略
+## 源码与贡献策略
 
-核心应用保持闭源。计划中的 Extension SDK 会公开稳定接口、权限范围、清单格式和示例扩展，让用户在受支持的边界内定制功能，而不暴露核心业务实现。Extension SDK 尚未包含在 v1.0.0 中。
+项目源码采用 PolyForm Noncommercial License 1.0.0。社区可以在非商业范围内学习、修改、提交贡献和分发修改版本；商业使用不在授权范围内。未来的扩展接口和示例代码默认采用相同协议，除非文件中明确标注其他协议。
