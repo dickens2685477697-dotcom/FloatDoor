@@ -6,6 +6,12 @@
 
 普通用户可以从 [GitHub Releases](../../releases) 下载最新 DMG。开发者可以直接克隆仓库并使用 Swift Package Manager 构建。
 
+## 怎么使用
+
+![Float Door 使用流程：从其他应用拖入文字、图片、链接或文件，按使用时间放入一次性或长期素材，需要时再拖出到当前窗口。](docs/images/float-door-usage.png)
+
+核心路径是“来源 → Float Door → 当前窗口”：先从其他应用拖入内容，临时内容放入“一次性”区域（默认 24 小时后清理），常用内容放入“长期素材”；需要时展开顶部入口，再把卡片拖到当前窗口。Float Door 只做本地暂存，不自动上传或同步云端。
+
 ## 当前目录结构
 
     Package.swift
