@@ -54,6 +54,7 @@ struct NewMaterialSheet: View {
                     .focused($isInputFocused)
                     .frame(height: 130)
                     .scrollContentBackground(.hidden)
+                    .tracklessScrollIndicators()
                     .padding(PortalTokens.Spacing.small)
                     .background(PortalTokens.Palette.glass)
                     .overlay(

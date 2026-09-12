@@ -182,19 +182,6 @@ struct PortalRootView: View {
 
             Spacer(minLength: 8)
 
-            HStack(spacing: 6) {
-                CountChip(
-                    count: store.temporaryItems.count,
-                    label: "一次性",
-                    tint: .orange
-                )
-                CountChip(
-                    count: store.permanentItems.count + store.customItems.count,
-                    label: "长期",
-                    tint: Color.portalAccent
-                )
-            }
-
             PortalIconButton(
                 glyph: .collapse,
                 size: 28,
@@ -219,10 +206,10 @@ struct PortalRootView: View {
             )
         }
         .padding(4)
-        .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+        .background(.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 15, style: .continuous)
-                .strokeBorder(.white.opacity(0.1), lineWidth: 1)
+                .strokeBorder(.white.opacity(0.045), lineWidth: 1)
         )
     }
 
@@ -250,8 +237,8 @@ struct PortalRootView: View {
                     Text(section.title)
                         .font(.system(size: 12, weight: .semibold))
                     Text(section.subtitle)
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(.white.opacity(isSelected ? 0.54 : 0.38))
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundStyle(.white.opacity(isSelected ? 0.70 : 0.60))
                 }
                 Spacer(minLength: 4)
                 Text("\(count)")
@@ -260,10 +247,10 @@ struct PortalRootView: View {
             }
             .foregroundStyle(isSelected ? .white : .white.opacity(0.58))
             .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .frame(height: 44)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                isSelected ? Color.white.opacity(0.15) : Color.clear,
+                isSelected ? Color.white.opacity(0.10) : Color.clear,
                 in: RoundedRectangle(cornerRadius: 11, style: .continuous)
             )
             .overlay(
@@ -388,8 +375,8 @@ struct PortalRootView: View {
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.9))
                 Text(detail)
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.45))
+                    .font(.system(size: 11, weight: .regular))
+                    .foregroundStyle(.white.opacity(0.62))
             }
 
             Spacer(minLength: 4)
@@ -419,6 +406,7 @@ struct PortalRootView: View {
                 .frame(width: 20, height: 20)
             }
         }
+        .frame(height: 28)
     }
 
     @ViewBuilder
@@ -486,10 +474,10 @@ struct PortalRootView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(10)
-        .background(PortalTokens.Palette.glass, in: RoundedRectangle(cornerRadius: PortalTokens.Radius.large, style: .continuous))
+        .background(Color.white.opacity(0.025), in: RoundedRectangle(cornerRadius: PortalTokens.Radius.large, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(.white.opacity(0.1), lineWidth: 1)
+                .strokeBorder(.white.opacity(0.045), lineWidth: 1)
         )
         .onTapGesture {
             itemSelection.clear()
@@ -533,8 +521,8 @@ struct PortalRootView: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.84))
             Text(detail)
-                .font(.system(size: 10, weight: .regular))
-                .foregroundStyle(.white.opacity(0.46))
+                .font(.system(size: 11, weight: .regular))
+                .foregroundStyle(.white.opacity(0.64))
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 230)
         }
