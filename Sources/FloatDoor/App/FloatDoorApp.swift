@@ -4,8 +4,17 @@ import AppKit
 struct FloatDoorApp {
     @MainActor
     static func main() {
+        guard let instanceLock = SingleInstanceCoordinator.acquireLock() else {
+            SingleInstanceCoordinator.requestExistingInstanceToOpen()
+            return
+        }
+        guard !SingleInstanceCoordinator.hasExistingInstance else {
+            SingleInstanceCoordinator.requestExistingInstanceToOpen()
+            return
+        }
+
         let application = NSApplication.shared
-        let delegate = AppDelegate()
+        let delegate = AppDelegate(instanceLock: instanceLock)
         application.delegate = delegate
         application.setActivationPolicy(.accessory)
         application.run()
@@ -14,25 +23,44 @@ struct FloatDoorApp {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    // Holding the lock here keeps it alive until the application terminates.
+    private let instanceLock: SingleInstanceLock
     private let store = PortalStore()
     private lazy var clipboardImporter = ClipboardImporter(store: store)
     private lazy var panelController = NotchPanelController(store: store)
     private lazy var settingsWindowController = SettingsWindowController(store: store)
     private var statusItem: NSStatusItem?
 
+    init(instanceLock: SingleInstanceLock) {
+        self.instanceLock = instanceLock
+        super.init()
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.mainMenu = ApplicationMenuFactory.makeMainMenu()
         panelController.install()
         installStatusItem()
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(openPortalFromDuplicateLaunch),
+            name: SingleInstanceCoordinator.openPortalNotification,
+            object: SingleInstanceCoordinator.bundleIdentifier
+        )
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        DistributedNotificationCenter.default().removeObserver(self)
         store.purgeExpired(showNotice: false)
     }
 
     @objc
     private func openPortal() {
         panelController.show()
+    }
+
+    @objc
+    private func openPortalFromDuplicateLaunch() {
+        openPortal()
     }
 
     @objc
