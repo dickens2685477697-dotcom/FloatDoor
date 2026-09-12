@@ -22,8 +22,9 @@ final class TracklessScrollIndicatorTests: XCTestCase {
         for scroll in scrollViews {
             XCTAssertTrue(scroll.verticalScroller is TracklessScroller)
             XCTAssertTrue(scroll.hasVerticalScroller)
-            XCTAssertEqual(scroll.scrollerStyle, .overlay)
+            XCTAssertEqual(scroll.scrollerStyle, .legacy)
             XCTAssertFalse(try XCTUnwrap(scroll.verticalScroller).isOpaque)
+            assertGutterDoesNotCoverContent(scroll)
             XCTAssertGreaterThan(try XCTUnwrap(scroll.documentView).bounds.height, scroll.contentSize.height)
             scroll.contentView.scroll(to: NSPoint(x: 0, y: 100))
             scroll.reflectScrolledClipView(scroll.contentView)
@@ -43,7 +44,21 @@ final class TracklessScrollIndicatorTests: XCTestCase {
         let scrollViews = descendants(of: host)
         XCTAssertEqual(scrollViews.count, 1)
         XCTAssertTrue(scrollViews.first?.verticalScroller is TracklessScroller)
-        XCTAssertEqual(scrollViews.first?.scrollerStyle, .overlay)
+        XCTAssertEqual(scrollViews.first?.scrollerStyle, .legacy)
+        if let scroll = scrollViews.first { assertGutterDoesNotCoverContent(scroll) }
+    }
+
+    private func assertGutterDoesNotCoverContent(_ scroll: NSScrollView, file: StaticString = #filePath, line: UInt = #line) {
+        scroll.tile()
+        guard let scroller = scroll.verticalScroller else {
+            XCTFail("Missing native scrollbar", file: file, line: line)
+            return
+        }
+        let contentRect = scroll.contentView.convert(scroll.contentView.bounds, to: scroll)
+        let scrollerRect = scroller.convert(scroller.bounds, to: scroll)
+        XCTAssertGreaterThan(scrollerRect.width, 0, file: file, line: line)
+        XCTAssertLessThanOrEqual(contentRect.maxX, scrollerRect.minX, file: file, line: line)
+        XCTAssertFalse(scroll.drawsBackground, file: file, line: line)
     }
 
     private func hostOffscreen(_ host: NSView) -> NSWindow {
