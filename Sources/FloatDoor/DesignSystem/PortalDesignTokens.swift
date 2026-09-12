@@ -17,7 +17,7 @@ enum PortalTokens {
         static let glass = Color.white.opacity(0.075)
         static let glassElevated = Color.white.opacity(0.115)
         static let glassPressed = Color.white.opacity(0.16)
-        static let glassStroke = Color.white.opacity(0.14)
+        static let glassStroke = Color.white.opacity(0.07)
         static let glassStrokeStrong = Color.white.opacity(0.23)
 
         static let icon = Color(red: 0.62, green: 0.70, blue: 0.82)

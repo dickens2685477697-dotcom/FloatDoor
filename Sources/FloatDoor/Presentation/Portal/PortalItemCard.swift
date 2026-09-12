@@ -25,24 +25,25 @@ struct PortalItemCard: View {
                         .lineLimit(1)
 
                     Text(item.contentSummary)
-                        .font(.system(size: 10.5, weight: .regular))
-                        .foregroundStyle(.white.opacity(0.6))
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundStyle(.white.opacity(0.68))
                         .lineLimit(2)
 
-                    HStack(spacing: 7) {
-                        HStack(spacing: 3) {
-                            PortalIcon(glyph: .clock, size: 13, showsPlate: false)
-                                .accessibilityHidden(true)
-                            Text(item.createdAt, style: .relative)
+                    TimelineView(.periodic(from: .now, by: 60)) { context in
+                        HStack(spacing: 7) {
+                            Text(PortalItemTimeLabel.created(at: item.createdAt, now: context.date))
+                            if let expiresAt = item.expiresAt {
+                                Text(PortalItemTimeLabel.remaining(until: expiresAt, now: context.date))
+                                    .foregroundStyle(
+                                        expiresAt <= context.date ? Color.red :
+                                            (expiresAt.timeIntervalSince(context.date) <= 3600
+                                                ? Color.orange : Color.white.opacity(0.62))
+                                    )
+                            }
                         }
-
-                        if let expiresAt = item.expiresAt {
-                            Text(expiresAt, style: .relative)
-                                .foregroundStyle(item.isExpired ? .red : .orange)
-                        }
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundStyle(.white.opacity(0.62))
                     }
-                    .font(.system(size: 9, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.4))
                 }
 
                 Spacer(minLength: 4)

@@ -17,12 +17,12 @@ struct PortalGlassModifier: ViewModifier {
                 if reduceTransparency {
                     shape.fill(PortalTokens.Palette.canvas)
                 } else {
-                    shape.fill(.ultraThinMaterial)
+                    shape.fill(PortalTokens.Palette.canvas)
                 }
                 shape.fill(
                     LinearGradient(
                         colors: [
-                            Color.white.opacity(emphasized ? 0.085 : 0.045),
+                            Color.white.opacity(emphasized ? 0.045 : 0.018),
                             Color.white.opacity(0.012),
                             Color.black.opacity(0.09)
                         ],
@@ -36,9 +36,9 @@ struct PortalGlassModifier: ViewModifier {
                 shape.strokeBorder(stroke, lineWidth: 1)
             }
             .shadow(
-                color: Color.black.opacity(emphasized ? 0.28 : 0.20),
-                radius: emphasized ? 16 : 10,
-                y: emphasized ? 7 : 4
+                color: Color.black.opacity(emphasized ? 0.18 : 0.08),
+                radius: emphasized ? 10 : 4,
+                y: emphasized ? 3 : 1
             )
     }
 }
