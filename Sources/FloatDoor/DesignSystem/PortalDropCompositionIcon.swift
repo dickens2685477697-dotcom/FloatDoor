@@ -70,18 +70,12 @@ struct PortalDropCompositionIcon: View {
                         lineWidth: 1
                     )
             }
-            .overlay(alignment: .top) {
-                Capsule()
-                    .fill(Color.white.opacity(0.13))
-                    .frame(width: 100, height: 1)
-                    .padding(.top, 1)
-            }
     }
 
     private var downloadBadge: some View {
         PortalIcon(
             glyph: .download,
-            size: 15,
+            size: 25,
             tint: .white,
             showsPlate: false
         )

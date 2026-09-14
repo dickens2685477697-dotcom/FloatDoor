@@ -70,6 +70,9 @@ struct PortalRootView: View {
             itemSelection.retainExistingItems(store.items)
         }
         .environment(\.colorScheme, .dark)
+        // Editing takes keyboard focus without changing the shelf's material
+        // or control appearance underneath the independent editor window.
+        .environment(\.controlActiveState, .active)
     }
 
     private var panelSurface: some View {

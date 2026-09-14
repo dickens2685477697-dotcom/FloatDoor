@@ -25,7 +25,7 @@ extension View {
 }
 
 final class TracklessScroller: NSScroller {
-    override class var isCompatibleWithOverlayScrollers: Bool { true }
+    override class var isCompatibleWithOverlayScrollers: Bool { false }
     override var isOpaque: Bool { false }
 
     override func drawKnobSlot(in slotRect: NSRect, highlight flag: Bool) {
@@ -102,7 +102,9 @@ final class TracklessScrollIndicatorView: NSView {
            !(scrollView.horizontalScroller is TracklessScroller) {
             scrollView.horizontalScroller = TracklessScroller()
         }
-        if scrollView.scrollerStyle != .overlay { scrollView.scrollerStyle = .overlay }
+        // Reserve a native gutter outside the document instead of overlaying cards.
+        if scrollView.scrollerStyle != .legacy { scrollView.scrollerStyle = .legacy }
+        if scrollView.drawsBackground { scrollView.drawsBackground = false }
         if !scrollView.hasVerticalScroller { scrollView.hasVerticalScroller = true }
         if !scrollView.autohidesScrollers { scrollView.autohidesScrollers = true }
     }
