@@ -33,7 +33,7 @@ final class NotchPanelController: NSObject, ObservableObject {
     private let dropImporter: DropImporter
     private let clipboardImporter: ClipboardImporter
     private let itemProviderFactory: PortalItemProviderFactory
-    private var panel: NotchPanel?
+    private(set) var panel: NotchPanel?
     private var hostingView: TrackingContainerView?
     private var hostingController: NSViewController?
     private var collapseWorkItem: DispatchWorkItem?
@@ -46,8 +46,8 @@ final class NotchPanelController: NSObject, ObservableObject {
     private var localPasteMonitor: Any?
     private var localCopyMonitor: Any?
     private var copyHoveredItemID: UUID?
-    private var newMaterialSheet: NSWindow?
-    private var areaRenameSheet: NSWindow?
+    private var newMaterialWindow: NSWindow?
+    private var renameWindow: NSWindow?
     private var transitionGeneration = 0
     private var isTransitioning = false
 
@@ -150,21 +150,55 @@ final class NotchPanelController: NSObject, ObservableObject {
         setExpanded(false)
     }
 
-    func beginModalInteraction() {
+    private func beginModalInteraction() {
         collapseWorkItem?.cancel()
+        if !isExpanded { setExpanded(true) }
         isKeepingExpandedForModal = true
-        // Lower the always-interactive panel while modal content is presented
-        // so the attached sheet remains visually in front.
-        panel?.level = .modalPanel
-        setExpanded(true)
-        NSApp.activate(ignoringOtherApps: true)
+        hostingView?.isModalBlocked = true
+        panel?.level = .statusBar
+    }
+
+    private func endModalInteraction() {
+        isKeepingExpandedForModal = false
+        hostingView?.isModalBlocked = false
+        collapseWorkItem?.cancel()
         panel?.makeKeyAndOrderFront(nil)
     }
 
-    func endModalInteraction() {
-        isKeepingExpandedForModal = false
-        panel?.level = .statusBar
-        collapse()
+    private var activeEditor: NSWindow? { newMaterialWindow ?? renameWindow }
+
+    private func focusExistingEditor() -> Bool {
+        guard let activeEditor else { return false }
+        activeEditor.makeKeyAndOrderFront(nil)
+        return true
+    }
+
+    private func attachEditor(_ editor: NSWindow, to panel: NSWindow) {
+        editor.level = panel.level
+        editor.collectionBehavior = [.fullScreenAuxiliary, .ignoresCycle]
+        editor.contentView?.layoutSubtreeIfNeeded()
+        if let size = editor.contentView?.fittingSize, size.width > 0, size.height > 0 {
+            editor.setContentSize(size)
+        }
+        let size = editor.frame.size
+        let visible = panel.screen?.visibleFrame ?? panel.frame
+        let origin = NSPoint(
+            x: max(visible.minX, min(panel.frame.midX - size.width / 2, visible.maxX - size.width)),
+            y: max(visible.minY, min(panel.frame.midY - size.height / 2, visible.maxY - size.height))
+        )
+        editor.setFrameOrigin(origin)
+        panel.addChildWindow(editor, ordered: .above)
+        editor.makeKeyAndOrderFront(nil)
+    }
+
+    func dismissEditor() {
+        guard let editor = activeEditor else { return }
+        panel?.removeChildWindow(editor)
+        editor.orderOut(nil)
+        editor.close()
+        newMaterialWindow = nil
+        renameWindow = nil
+        endModalInteraction()
     }
 
     func beginTransientInteraction() {
@@ -189,16 +223,13 @@ final class NotchPanelController: NSObject, ObservableObject {
             return
         }
 
-        if let newMaterialSheet {
-            newMaterialSheet.makeKeyAndOrderFront(nil)
-            return
-        }
+        if focusExistingEditor() { return }
 
         beginModalInteraction()
 
-        let sheet = NSWindow(
+        let sheet = PortalEditorWindow(
             contentRect: NSRect(x: 0, y: 0, width: 400, height: 270),
-            styleMask: [.titled, .fullSizeContentView],
+            styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
@@ -208,40 +239,39 @@ final class NotchPanelController: NSObject, ObservableObject {
         sheet.isMovable = false
         sheet.isReleasedWhenClosed = false
         sheet.backgroundColor = .clear
+        sheet.isOpaque = false
         sheet.appearance = NSAppearance(named: .darkAqua)
         sheet.contentViewController = NSHostingController(
             rootView: NewMaterialSheet(store: store, scope: scope) { [weak self] in
-                self?.dismissNewMaterialEditor()
-            }
+                self?.dismissEditor()
+            }.clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         )
 
-        newMaterialSheet = sheet
-        panel.beginSheet(sheet) { [weak self, weak sheet] _ in
-            guard let self, self.newMaterialSheet === sheet else { return }
-            self.newMaterialSheet = nil
-            self.endModalInteraction()
-        }
-        Self.logger.notice("Native sheet attached: \(panel.attachedSheet === sheet, privacy: .public)")
-    }
-
-    private func dismissNewMaterialEditor() {
-        guard let panel, let newMaterialSheet else { return }
-        panel.endSheet(newMaterialSheet)
+        newMaterialWindow = sheet
+        attachEditor(sheet, to: panel)
     }
 
     func presentAreaRenameEditor(scope: StorageScope) {
-        guard let panel else { return }
-        if let areaRenameSheet {
-            areaRenameSheet.makeKeyAndOrderFront(nil)
-            return
-        }
-
         let originalName = scope == .custom ? store.customAreaName : store.materialAreaName
+        presentRenameEditor(originalName: originalName, title: "重命名区域") { [weak self] name in
+            if scope == .custom { self?.store.renameCustomArea(to: name) }
+            else { self?.store.renameMaterialArea(to: name) }
+        }
+    }
+
+    func presentItemRenameEditor(_ item: PortalItem) {
+        presentRenameEditor(originalName: item.name, title: "重命名素材") { [weak self] name in
+            self?.store.rename(item, to: name)
+        }
+    }
+
+    private func presentRenameEditor(originalName: String, title: String, onSave: @escaping (String) -> Void) {
+        guard let panel, !focusExistingEditor() else { return }
         beginModalInteraction()
 
-        let sheet = NSWindow(
+        let sheet = PortalEditorWindow(
             contentRect: NSRect(x: 0, y: 0, width: 340, height: 160),
-            styleMask: [.titled, .fullSizeContentView],
+            styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
@@ -250,37 +280,26 @@ final class NotchPanelController: NSObject, ObservableObject {
         sheet.isMovable = false
         sheet.isReleasedWhenClosed = false
         sheet.backgroundColor = .clear
+        sheet.isOpaque = false
         sheet.appearance = NSAppearance(named: .darkAqua)
         sheet.contentViewController = NSHostingController(
             rootView: AreaRenameEditor(
                 originalName: originalName,
-                onCancel: { [weak self] in self?.dismissAreaRenameEditor() },
+                title: title,
+                onCancel: { [weak self] in self?.dismissEditor() },
                 onSave: { [weak self] name in
-                    guard let self else { return }
-                    if scope == .custom {
-                        self.store.renameCustomArea(to: name)
-                    } else {
-                        self.store.renameMaterialArea(to: name)
-                    }
-                    self.dismissAreaRenameEditor()
+                    onSave(name)
+                    self?.dismissEditor()
                 }
-            )
+            ).clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         )
 
-        areaRenameSheet = sheet
-        panel.beginSheet(sheet) { [weak self, weak sheet] _ in
-            guard let self, self.areaRenameSheet === sheet else { return }
-            self.areaRenameSheet = nil
-            self.endModalInteraction()
-        }
-    }
-
-    private func dismissAreaRenameEditor() {
-        guard let panel, let areaRenameSheet else { return }
-        panel.endSheet(areaRenameSheet)
+        renameWindow = sheet
+        attachEditor(sheet, to: panel)
     }
 
     func pointerEntered() {
+        guard !isKeepingExpandedForModal else { return }
         collapseWorkItem?.cancel()
         setExpanded(true)
     }
@@ -354,6 +373,7 @@ final class NotchPanelController: NSObject, ObservableObject {
     }
 
     private func setExpanded(_ expanded: Bool) {
+        guard !isKeepingExpandedForModal else { return }
         collapseWorkItem?.cancel()
         if !expanded {
             setDragHoveredDestination(nil)
@@ -600,6 +620,7 @@ final class NotchPanelController: NSObject, ObservableObject {
               isExpanded,
               let panel,
               panel.isKeyWindow,
+              !isKeepingExpandedForModal,
               panel.attachedSheet == nil,
               !(panel.firstResponder is NSTextView),
               let itemID = copyHoveredItemID,
@@ -623,6 +644,7 @@ final class NotchPanelController: NSObject, ObservableObject {
               isExpanded,
               let panel,
               panel.isKeyWindow,
+              !isKeepingExpandedForModal,
               panel.attachedSheet == nil,
               let hostingView else {
             return false
@@ -732,10 +754,20 @@ final class NotchPanel: NSPanel {
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
+
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
+        // This panel deliberately occupies the menu-bar/notch region. AppKit's
+        // default sheet presentation moves its parent below the menu bar.
+        // The controller already positions this window against screen.frame
+        // and handles display changes; preserve that position for native and
+        // SwiftUI sheets instead of constraining it to screen.visibleFrame.
+        frameRect
+    }
 }
 
 final class TrackingContainerView: NSView {
     weak var panelController: NotchPanelController?
+    var isModalBlocked = false
     var activeSection: PortalSection = .temporary
     var onDragHoverDestinationChanged: ((PortalDropDestination?) -> Void)?
     var onDragDrop: ((PortalDropDestination, NSPasteboard) -> Bool)?
@@ -789,6 +821,7 @@ final class TrackingContainerView: NSView {
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
+        if isModalBlocked { return bounds.contains(point) ? self : nil }
         // SwiftUI's nested permanent-pane ScrollView can return its hosting
         // view before consulting embedded NSViewRepresentable controls. Route
         // card actions by their real, converted frames so the visible control
@@ -953,7 +986,7 @@ final class TrackingContainerView: NSView {
     /// that conversion explicit prevents the panel's screen origin from being
     /// subtracted a second time and makes every drop zone hittable.
     func destination(atWindowPoint windowPoint: NSPoint) -> PortalDropDestination? {
-        guard bounds.width >= 700, bounds.height >= 400,
+        guard !isModalBlocked, bounds.width >= 700, bounds.height >= 400,
               window != nil else { return nil }
 
         let localPoint = convert(windowPoint, from: nil)
@@ -1032,6 +1065,7 @@ private final class FirstMouseHotspotButton: NSButton {
 }
 
 private struct AreaRenameEditor: View {
+    let title: String
     let originalName: String
     let onCancel: () -> Void
     let onSave: (String) -> Void
@@ -1039,8 +1073,9 @@ private struct AreaRenameEditor: View {
     @State private var proposedName: String
     @FocusState private var isFocused: Bool
 
-    init(originalName: String, onCancel: @escaping () -> Void, onSave: @escaping (String) -> Void) {
+    init(originalName: String, title: String, onCancel: @escaping () -> Void, onSave: @escaping (String) -> Void) {
         self.originalName = originalName
+        self.title = title
         self.onCancel = onCancel
         self.onSave = onSave
         self._proposedName = State(initialValue: originalName)
@@ -1048,7 +1083,7 @@ private struct AreaRenameEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("重命名区域")
+            Text(title)
                 .font(PortalTokens.Typography.display)
                 .foregroundStyle(PortalTokens.Palette.primaryText)
 
@@ -1093,4 +1128,9 @@ private struct AreaRenameEditor: View {
             onSave(trimmedName)
         }
     }
+}
+
+private final class PortalEditorWindow: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { false }
 }

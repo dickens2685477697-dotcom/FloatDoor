@@ -10,8 +10,6 @@ struct PortalItemCard: View {
     let orderedItems: [PortalItem]
     let draggableItems: [PortalItem]
 
-    @State private var isShowingRenameSheet = false
-    @State private var proposedName = ""
 
     var body: some View {
         HStack(spacing: 11) {
@@ -173,21 +171,10 @@ struct PortalItemCard: View {
             }
         }
         .accessibilityAddTraits(selection.isSelected(item) ? .isSelected : [])
-        .sheet(isPresented: $isShowingRenameSheet, onDismiss: {
-            panelController.endModalInteraction()
-        }) {
-            RenameItemSheet(
-                proposedName: $proposedName,
-                originalName: item.name,
-                onSave: { store.rename(item, to: proposedName) }
-            )
-        }
     }
 
     private func presentRenameSheet() {
-        panelController.beginModalInteraction()
-        proposedName = item.name
-        isShowingRenameSheet = true
+        panelController.presentItemRenameEditor(item)
     }
 
     private var contextDeleteTargets: [PortalItem] {
