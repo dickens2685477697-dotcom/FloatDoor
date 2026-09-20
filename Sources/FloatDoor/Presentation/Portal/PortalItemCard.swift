@@ -99,6 +99,11 @@ struct PortalItemCard: View {
                         }
                     }
                     Button {
+                        panelController.copy([item])
+                    } label: {
+                        Label("复制", systemImage: "doc.on.doc")
+                    }
+                    Button {
                         presentRenameSheet()
                     } label: {
                         Label {
@@ -128,6 +133,7 @@ struct PortalItemCard: View {
                     PortalCardMenuHotspot(
                         includesPromote: item.scope == .temporary,
                         onPromote: { store.promote(item) },
+                        onCopy: { panelController.copy([item]) },
                         onRename: presentRenameSheet,
                         onDelete: { store.delete(item) },
                         onTrackingChanged: { isTracking in
@@ -162,6 +168,9 @@ struct PortalItemCard: View {
                     store.promote(item)
                 }
             }
+            Button("复制") {
+                panelController.copy(contextCopyTargets)
+            }
             Button("重命名") {
                 presentRenameSheet()
             }
@@ -178,6 +187,10 @@ struct PortalItemCard: View {
     }
 
     private var contextDeleteTargets: [PortalItem] {
+        contextCopyTargets
+    }
+
+    private var contextCopyTargets: [PortalItem] {
         let selectedItems = selection.selectedItems(from: draggableItems)
         return selection.isSelected(item) && !selectedItems.isEmpty ? selectedItems : [item]
     }

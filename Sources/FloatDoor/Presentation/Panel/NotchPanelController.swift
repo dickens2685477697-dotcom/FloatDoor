@@ -346,6 +346,16 @@ final class NotchPanelController: NSObject, ObservableObject {
         }
     }
 
+    @discardableResult
+    func copy(_ items: [PortalItem]) -> Bool {
+        let writers = itemProviderFactory.pasteboardWriters(for: items)
+        guard !writers.isEmpty else { return false }
+
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        return pasteboard.writeObjects(writers)
+    }
+
     private func performAppKitDrop(
         _ destination: PortalDropDestination,
         pasteboard: NSPasteboard
@@ -628,12 +638,7 @@ final class NotchPanelController: NSObject, ObservableObject {
             return false
         }
 
-        let writers = itemProviderFactory.pasteboardWriters(for: [item])
-        guard !writers.isEmpty else { return false }
-
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        return pasteboard.writeObjects(writers)
+        return copy([item])
     }
 
     private func handlePasteShortcut(_ event: NSEvent) -> Bool {

@@ -20,6 +20,7 @@ struct PortalCardActionHotspot: NSViewRepresentable {
 struct PortalCardMenuHotspot: NSViewRepresentable {
     let includesPromote: Bool
     let onPromote: () -> Void
+    let onCopy: () -> Void
     let onRename: () -> Void
     let onDelete: () -> Void
     let onTrackingChanged: (Bool) -> Void
@@ -38,6 +39,7 @@ struct PortalCardMenuHotspot: NSViewRepresentable {
         button.configure(
             includesPromote: includesPromote,
             onPromote: onPromote,
+            onCopy: onCopy,
             onRename: onRename,
             onDelete: onDelete,
             onTrackingChanged: onTrackingChanged
@@ -80,6 +82,7 @@ final class FirstMouseCardActionButton: NSButton {
 
 final class FirstMouseCardMenuButton: NSButton {
     private var promoteHandler: (() -> Void)?
+    private var copyHandler: (() -> Void)?
     private var renameHandler: (() -> Void)?
     private var deleteHandler: (() -> Void)?
     private var trackingChangedHandler: ((Bool) -> Void)?
@@ -101,11 +104,13 @@ final class FirstMouseCardMenuButton: NSButton {
     func configure(
         includesPromote: Bool,
         onPromote: @escaping () -> Void,
+        onCopy: @escaping () -> Void,
         onRename: @escaping () -> Void,
         onDelete: @escaping () -> Void,
         onTrackingChanged: @escaping (Bool) -> Void
     ) {
         promoteHandler = onPromote
+        copyHandler = onCopy
         renameHandler = onRename
         deleteHandler = onDelete
         trackingChangedHandler = onTrackingChanged
@@ -119,6 +124,11 @@ final class FirstMouseCardMenuButton: NSButton {
                 action: #selector(performPromote)
             ))
         }
+        menu.addItem(actionItem(
+            title: "复制",
+            systemImageName: "doc.on.doc",
+            action: #selector(performCopy)
+        ))
         menu.addItem(actionItem(
             title: "重命名",
             systemImageName: "pencil",
@@ -160,6 +170,10 @@ final class FirstMouseCardMenuButton: NSButton {
 
     @objc private func performPromote() {
         promoteHandler?()
+    }
+
+    @objc private func performCopy() {
+        copyHandler?()
     }
 
     @objc private func performRename() {

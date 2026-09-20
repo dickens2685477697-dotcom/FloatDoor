@@ -61,6 +61,7 @@ final class PortalControlHitTestingTests: XCTestCase {
         menuButton.configure(
             includesPromote: true,
             onPromote: { performedActions.append("promote-menu") },
+            onCopy: { performedActions.append("copy") },
             onRename: { performedActions.append("rename") },
             onDelete: { performedActions.append("delete") },
             onTrackingChanged: { _ in }
@@ -68,14 +69,14 @@ final class PortalControlHitTestingTests: XCTestCase {
 
         XCTAssertTrue(menuButton.acceptsFirstMouse(for: nil))
         let menu = menuButton.actionMenu
-        for title in ["转为长期素材", "重命名", "删除"] {
+        for title in ["转为长期素材", "复制", "重命名", "删除"] {
             let item = try XCTUnwrap(menu.item(withTitle: title))
             XCTAssertTrue(NSApp.sendAction(try XCTUnwrap(item.action), to: item.target, from: item))
         }
 
         XCTAssertEqual(
             performedActions,
-            ["promote-button", "promote-menu", "rename", "delete"]
+            ["promote-button", "promote-menu", "copy", "rename", "delete"]
         )
     }
 
@@ -85,6 +86,7 @@ final class PortalControlHitTestingTests: XCTestCase {
         menuButton.configure(
             includesPromote: false,
             onPromote: {},
+            onCopy: {},
             onRename: {},
             onDelete: {},
             onTrackingChanged: { trackingStates.append($0) }
