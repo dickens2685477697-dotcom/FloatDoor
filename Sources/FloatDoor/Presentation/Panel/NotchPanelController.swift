@@ -50,6 +50,11 @@ final class NotchPanelController: NSObject, ObservableObject {
     private var renameWindow: NSWindow?
     private var transitionGeneration = 0
     private var isTransitioning = false
+    private enum PointerActivationSource { case hover, drag }
+    private var pointerActivationSource: PointerActivationSource?
+    private var pointerActivationTimer: Timer?
+    private var pointerSlowdownGate = PointerSlowdownGate()
+    private var shouldResumeHoverAfterTransition = false
 
     init(store: PortalStore) {
         self.store = store
@@ -301,10 +306,20 @@ final class NotchPanelController: NSObject, ObservableObject {
     func pointerEntered() {
         guard !isKeepingExpandedForModal else { return }
         collapseWorkItem?.cancel()
-        setExpanded(true)
+        guard !isExpanded else {
+            // A real re-entry during collapse should get a fresh speed check
+            // once the window has reached its smaller trigger geometry.
+            if isTransitioning { shouldResumeHoverAfterTransition = true }
+            return
+        }
+        beginPointerActivation(.hover)
     }
 
     func pointerExited() {
+        shouldResumeHoverAfterTransition = false
+        // A drag may still be inside the larger activation band surrounding
+        // the physical notch after leaving the collapsed window itself.
+        if pointerActivationSource == .hover { cancelPointerActivation() }
         guard isExpanded, !keepsPanelExpanded else { return }
         collapseWorkItem?.cancel()
         let workItem = DispatchWorkItem { [weak self] in
@@ -316,13 +331,75 @@ final class NotchPanelController: NSObject, ObservableObject {
 
     func draggingEnteredPanel() {
         collapseWorkItem?.cancel()
-        // Resizing a drag destination from inside AppKit's drag callback can
-        // invalidate the current destination. Expand on the next run-loop pass
-        // so the drag session remains attached to the panel.
         guard !isExpanded else { return }
-        DispatchQueue.main.async { [weak self] in
-            self?.setExpanded(true)
+        // The timer also keeps window resizing outside AppKit's drag callback,
+        // so revealing the panel cannot invalidate the current destination.
+        beginPointerActivation(.drag)
+    }
+
+    private func beginPointerActivation(_ source: PointerActivationSource) {
+        guard !isTransitioning, panel?.isVisible == true else { return }
+        // Hover notifications can accompany a native drag. They must not
+        // replace its larger activation region or restart its slow interval.
+        if pointerActivationSource == .drag, source == .hover { return }
+        guard pointerActivationSource != source else { return }
+        cancelPointerActivation()
+        pointerActivationSource = source
+
+        let timer = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] timer in
+            let isAlive = MainActor.assumeIsolated {
+                guard let self else { return false }
+                self.samplePointerActivation(
+                    at: NSEvent.mouseLocation,
+                    timestamp: ProcessInfo.processInfo.systemUptime
+                )
+                return true
+            }
+            if !isAlive { timer.invalidate() }
         }
+        timer.tolerance = 0.004
+        pointerActivationTimer = timer
+        // Sampling must continue when the pointer stops and while AppKit is
+        // running a drag session's tracking loop.
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    func samplePointerActivation(
+        at point: NSPoint,
+        timestamp: TimeInterval,
+        isLeftMouseButtonPressed: Bool = NSEvent.pressedMouseButtons & 1 != 0
+    ) {
+        guard !isExpanded, !isTransitioning, !isKeepingExpandedForModal,
+              let source = pointerActivationSource, let panel, panel.isVisible else {
+            cancelPointerActivation()
+            return
+        }
+        let region: NSRect?
+        switch source {
+        case .hover:
+            region = panel.frame
+        case .drag:
+            guard isLeftMouseButtonPressed else {
+                cancelPointerActivation()
+                return
+            }
+            region = dragActivationRect(at: point)
+        }
+        guard let region, region.contains(point) else {
+            cancelPointerActivation()
+            return
+        }
+        if pointerSlowdownGate.sample(at: point, timestamp: timestamp, in: region) {
+            setExpanded(true)
+        }
+    }
+
+    private func cancelPointerActivation() {
+        pointerActivationTimer?.invalidate()
+        pointerActivationTimer = nil
+        pointerActivationSource = nil
+        pointerSlowdownGate.reset()
+        shouldResumeHoverAfterTransition = false
     }
 
     func setActiveSection(_ section: PortalSection) {
@@ -367,11 +444,13 @@ final class NotchPanelController: NSObject, ObservableObject {
 
     @objc
     private func reposition() {
+        cancelPointerActivation()
         updateFrame()
     }
 
     @objc
     private func applicationDidResignActive() {
+        cancelPointerActivation()
         guard isExpanded, !keepsPanelExpanded else { return }
         collapse()
     }
@@ -384,6 +463,7 @@ final class NotchPanelController: NSObject, ObservableObject {
 
     private func setExpanded(_ expanded: Bool) {
         guard !isKeepingExpandedForModal else { return }
+        cancelPointerActivation()
         collapseWorkItem?.cancel()
         if !expanded {
             setDragHoveredDestination(nil)
@@ -460,6 +540,7 @@ final class NotchPanelController: NSObject, ObservableObject {
                     guard let self, self.transitionGeneration == generation else { return }
                     self.resetContentPresentation()
                     self.isTransitioning = false
+                    self.shouldResumeHoverAfterTransition = false
                 }
             }
             layer.opacity = 1
@@ -505,6 +586,9 @@ final class NotchPanelController: NSObject, ObservableObject {
                     guard let self, self.transitionGeneration == generation else { return }
                     self.resetContentPresentation()
                     self.isTransitioning = false
+                    if self.shouldResumeHoverAfterTransition {
+                        self.beginPointerActivation(.hover)
+                    }
                 }
             }
         }
@@ -552,16 +636,18 @@ final class NotchPanelController: NSObject, ObservableObject {
     private func installDragMonitors() {
         guard globalDragMonitor == nil, localDragMonitor == nil else { return }
 
-        globalDragMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDragged) { [weak self] _ in
+        let dragEvents: NSEvent.EventTypeMask = [.leftMouseDragged, .leftMouseUp]
+        globalDragMonitor = NSEvent.addGlobalMonitorForEvents(matching: dragEvents) { [weak self] event in
+            let ended = event.type == .leftMouseUp
             Task { @MainActor in
-                self?.expandWhenDraggingNearNotch()
+                if ended { self?.cancelDragActivation() }
+                else { self?.expandWhenDraggingNearNotch() }
             }
         }
 
-        localDragMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDragged) { [weak self] event in
-            Task { @MainActor in
-                self?.expandWhenDraggingNearNotch()
-            }
+        localDragMonitor = NSEvent.addLocalMonitorForEvents(matching: dragEvents) { [weak self] event in
+            if event.type == .leftMouseUp { self?.cancelDragActivation() }
+            else { self?.expandWhenDraggingNearNotch() }
             return event
         }
     }
@@ -668,20 +754,30 @@ final class NotchPanelController: NSObject, ObservableObject {
     private func expandWhenDraggingNearNotch() {
         guard !isExpanded else { return }
         let pointer = NSEvent.mouseLocation
-        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(pointer) }) else { return }
+        guard let region = dragActivationRect(at: pointer), region.contains(pointer) else {
+            cancelDragActivation()
+            return
+        }
+        draggingEnteredPanel()
+    }
+
+    private func cancelDragActivation() {
+        if pointerActivationSource == .drag { cancelPointerActivation() }
+    }
+
+    private func dragActivationRect(at pointer: NSPoint) -> NSRect? {
+        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(pointer) }) else { return nil }
 
         let notchSize = measuredNotchSize(for: screen)
         // The physical camera housing has no drawable pixels and therefore
         // cannot be an AppKit drag destination. Observe cross-app mouse drags
         // and use a small invisible band around it as the activation target.
-        let activationRect = NSRect(
+        return NSRect(
             x: screen.frame.midX - (notchSize.width + 80) / 2,
             y: screen.frame.maxY - notchSize.height - 20,
             width: notchSize.width + 80,
             height: notchSize.height + 20
         )
-        guard activationRect.contains(pointer) else { return }
-        draggingEnteredPanel()
     }
 
     private func updateFrame() {
